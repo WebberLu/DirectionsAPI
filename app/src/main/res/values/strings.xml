@@ -1,0 +1,16 @@
+<resources>
+    <string name="app_name">DirectionsAPI</string>
+    <string name="title_activity_maps">Map</string>
+    <string name="demo_setting">導航設定</string>
+    <string name="demo_directionlist">路徑清單</string>
+
+    <string name="demo_setting_avoid_tolls">避開收費站</string>
+    <string name="demo_setting_avoid_highways">避開高速路</string>
+    <string name="demo_setting_avoid_ferries">不搭渡輪</string>
+
+    <string name="demo_setting_origin">出發地</string>
+    <string name="demo_setting_destination">目的地</string>
+
+    <string name="demo_setting_go">規劃路徑</string>
+    <string name="loading">請稍等</string>
+</resources>
