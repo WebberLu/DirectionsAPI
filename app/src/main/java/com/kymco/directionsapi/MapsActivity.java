@@ -54,6 +54,7 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
     private CheckBox mAvoidHighwaysCkb, mAvoidTollsCkb, mAvoidFerriesCkb;
     private Button mGO;
     private EditText mOriginEt, mDestinationEt;
+    private List mList;
     /**
      * ATTENTION: This was auto-generated to implement the App Indexing API.
      * See https://g.co/AppIndexing/AndroidStudio for more information.
@@ -174,10 +175,8 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
             DirectionsJSONParser parser = new DirectionsJSONParser();
 
             try {
-                parser.setmJSONData(new JSONObject
-                        (result));
-                List<List<HashMap<String, String>>> positions = parser.parseLatLng();
-                parser.getMainEndAddressAndLatLng();
+                parser.setmJSONData(new JSONObject(result));
+                List<List<HashMap<String, String>>> positions = parser.parserPolylinePoints();
                 if(positions.size()>0) {
                     List<HashMap<String, String>> steps = positions.get(0);//選第一條路線
                     for (int j = 0; j < steps.size(); j++) {

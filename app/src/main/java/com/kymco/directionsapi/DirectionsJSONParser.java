@@ -21,7 +21,7 @@ public class DirectionsJSONParser {
         this.mJSONData = mJSONData;
     }
 
-    public List<List<HashMap<String, String>>> parseLatLng() {
+    public List<List<HashMap<String, String>>> parserPolylinePoints() {
 
         List<List<HashMap<String, String>>> routes = new ArrayList<List<HashMap<String, String>>>();
         JSONArray jRoutes = null;
@@ -43,6 +43,7 @@ public class DirectionsJSONParser {
 
                     /** Traversing all steps */
                     for (int k = 0; k < jSteps.length(); k++) {
+
                         String polyline = "";
                         polyline = (String) ((JSONObject) ((JSONObject) jSteps
                                 .get(k)).get("polyline")).get("points");
@@ -68,87 +69,122 @@ public class DirectionsJSONParser {
         return routes;
     }
 
-    public String getMainDistance(){
-        String maindistance = "";
-        try {
-            JSONArray jRoutes = null;
-            JSONArray jLegs = null;
-            JSONObject jDistance = null;
-            jRoutes = mJSONData.getJSONArray("routes");
-            jLegs = ((JSONObject) jRoutes.get(0)).getJSONArray("legs");
-            jDistance = ((JSONObject) jLegs.get(0)).getJSONObject("distance");
-            maindistance = jDistance.getString("text");
-        } catch (JSONException e) {
+    /**
+     * 回傳每個 legs 內的屬性
+     * @return List<HashMap<String, String>>
+     */
+    public List<HashMap<String, String>> getLegs(){
 
+        List<HashMap<String, String>> result = new ArrayList<HashMap<String, String>>();
+        JSONArray jRoutes = null;
+        JSONArray jLegs = null;
+        try {
+            jRoutes = mJSONData.getJSONArray("routes");
+
+            /** Traversing all routes */
+            for (int i = 0; i < jRoutes.length(); i++) {
+                jLegs = ((JSONObject) jRoutes.get(i)).getJSONArray("legs");
+
+                /** Traversing all legs */
+                for (int j = 0; j < jLegs.length(); j++) {
+                    String distance_text =
+                            ((JSONObject) jLegs.get(j)).getJSONObject("distance").getString("text");
+                    String distance_value =
+                            ((JSONObject) jLegs.get(j)).getJSONObject("distance").getString("value");
+                    String duration_text =
+                            ((JSONObject) jLegs.get(j)).getJSONObject("duration").getString("text");
+                    String duration_value =
+                            ((JSONObject) jLegs.get(j)).getJSONObject("duration").getString("value");
+                    String start_address =
+                            ((JSONObject) jLegs.get(j)).getString("start_address");
+                    String end_address =
+                            ((JSONObject) jLegs.get(j)).getString("end_address");
+                    String end_location_lat =
+                            ((JSONObject) jLegs.get(j)).getJSONObject("end_location").getString("lat");
+                    String end_location_lng =
+                            ((JSONObject) jLegs.get(j)).getJSONObject("end_location").getString("lng");
+                    String start_location_lat =
+                            ((JSONObject) jLegs.get(j)).getJSONObject("start_location").getString("lat");
+                    String start_location_lng =
+                            ((JSONObject) jLegs.get(j)).getJSONObject("start_location").getString("lng");
+                    HashMap<String, String> hm = new HashMap<String, String>();
+                    hm.put("distance_text",distance_text);
+                    hm.put("duration_text",duration_text);
+                    hm.put("start_address",start_address);
+                    hm.put("end_address",end_address);
+                    hm.put("end_location_lat",end_location_lat);
+                    hm.put("end_location_lng",end_location_lng);
+                    hm.put("start_location_lat",start_location_lat);
+                    hm.put("start_location_lng",start_location_lng);
+                    hm.put("start_location_lng", start_location_lng);
+                    result.add(hm);
+                }
+
+            }
+        } catch (JSONException e) {
             e.printStackTrace();
         }
-        return maindistance;
-    }
-
-    public String getMainDuration(){
-        String mainduration = "";
-        try {
-            JSONArray jRoutes = null;
-            JSONArray jLegs = null;
-            JSONObject jDuration = null;
-            jRoutes = mJSONData.getJSONArray("routes");
-            jLegs = ((JSONObject) jRoutes.get(0)).getJSONArray("legs");
-            jDuration= ((JSONObject) jLegs.get(0)).getJSONObject("duration");
-            mainduration = jDuration.getString("text");
-        } catch (JSONException e) {
-            e.printStackTrace();
-        }
-        return mainduration;
+        return result;
     }
 
     /**
-     *
-     * return routes 底下 legs(0) 的 end_address & end_location
-     * @return HashMap<String,String>
+     * 回傳每個 legs 底下 steps 內的屬性
+     * @return List<List<HashMap<String, String>>>
      */
-    public HashMap<String,String> getMainEndAddressAndLatLng(){
-        HashMap<String,String> map = new HashMap<String,String>();
-        try {
-            JSONArray jRoutes = null;
-            JSONArray jLegs = null;
-            JSONObject jend_location = null;
-            String end_address = null;
-            jRoutes = mJSONData.getJSONArray("routes");
-            jLegs = ((JSONObject) jRoutes.get(0)).getJSONArray("legs");
-            jend_location= ((JSONObject) jLegs.get(0)).getJSONObject("end_location");
-            end_address= ((JSONObject) jLegs.get(0)).getString("end_address");
-            map.put("address",end_address);
-            map.put("lat",jend_location.getString("lat"));
-            map.put("lng",jend_location.getString("lng"));
-        } catch (JSONException e) {
-            e.printStackTrace();
-        }
-        return map;
-    }
+    public List<List<HashMap<String, String>>> getSteps(){
+        List<List<HashMap<String, String>>> result = new ArrayList<List<HashMap<String, String>>>();
+        JSONArray jRoutes = null;
+        JSONArray jLegs = null;
+        JSONArray jSteps = null;
 
-    /**
-     *
-     * return routes 底下 legs(0) 的 start_address & start_location
-     * @return HashMap<String,String>
-     */
-    public HashMap<String,String> getMainStartAddressAndLatLng(){
-        HashMap<String,String> map = new HashMap<String,String>();
         try {
-            JSONArray jRoutes = null;
-            JSONArray jLegs = null;
-            JSONObject jstart_location = null;
-            String start_address = null;
             jRoutes = mJSONData.getJSONArray("routes");
-            jLegs = ((JSONObject) jRoutes.get(0)).getJSONArray("legs");
-            jstart_location= ((JSONObject) jLegs.get(0)).getJSONObject("start_location");
-            start_address= ((JSONObject) jLegs.get(0)).getString("start_address");
-            map.put("address",start_address);
-            map.put("lat",jstart_location.getString("lat"));
-            map.put("lng",jstart_location.getString("lng"));
+
+            /** Traversing all routes */
+            for (int i = 0; i < jRoutes.length(); i++) {
+                jLegs = ((JSONObject) jRoutes.get(i)).getJSONArray("legs");
+                List path = new ArrayList<HashMap<String, String>>();
+
+                /** Traversing all legs */
+                for (int j = 0; j < jLegs.length(); j++) {
+                    jSteps = ((JSONObject) jLegs.get(j)).getJSONArray("steps");
+
+                    /** Traversing all steps */
+                    for (int k = 0; k < jSteps.length(); k++) {
+                        String html_instructions = ((JSONObject) jSteps.get(k)).getString("html_instructions");
+                        String travel_mode = ((JSONObject) jSteps.get(k)).getString("travel_mode");
+                        String maneuver = ((JSONObject) jSteps.get(k)).getString("maneuver");
+
+                        String distance_text = ((JSONObject) jSteps.get(k)).getJSONObject("distance").getString("text");
+                        String distance_value = ((JSONObject) jSteps.get(k)).getJSONObject("distance").getString("value");
+
+                        String duration_text = ((JSONObject) jSteps.get(k)).getJSONObject("duration").getString("text");
+                        String duration_value = ((JSONObject) jSteps.get(k)).getJSONObject("duration").getString("value");
+
+                        String start_lat = ((JSONObject) jSteps.get(k)).getJSONObject("start_location").getString("lat");
+                        String start_lon = ((JSONObject) jSteps.get(k)).getJSONObject("start_location").getString("lng");
+
+                        String end_lat = ((JSONObject) jSteps.get(k)).getJSONObject("end_location").getString("lat");
+                        String end_lon = ((JSONObject) jSteps.get(k)).getJSONObject("end_location").getString("lng");
+                        HashMap<String, String> hm = new HashMap<String, String>();
+                        hm.put("distance_text",distance_text);
+                        hm.put("duration_text",duration_text);
+                        hm.put("html_instructions",html_instructions);
+                        hm.put("maneuver",maneuver);
+                        hm.put("travel_mode",travel_mode);
+                        hm.put("start_lat",start_lat);
+                        hm.put("start_lon",start_lon);
+                        hm.put("end_lat",end_lat);
+                        hm.put("end_lon",end_lon);
+                        path.add(hm);
+                    }
+                    result.add(path);
+                }
+            }
         } catch (JSONException e) {
             e.printStackTrace();
         }
-        return map;
+        return result;
     }
 
     //
