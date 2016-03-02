@@ -4,6 +4,7 @@ import android.app.ProgressDialog;
 import android.net.Uri;
 import android.os.AsyncTask;
 import android.os.Bundle;
+import android.os.Handler;
 import android.support.v4.app.FragmentActivity;
 import android.util.Log;
 import android.view.Menu;
@@ -13,6 +14,7 @@ import android.widget.Button;
 import android.widget.CheckBox;
 import android.widget.EditText;
 import android.widget.ImageView;
+import android.widget.ListView;
 import android.widget.Toast;
 
 import com.google.android.gms.appindexing.Action;
@@ -36,6 +38,7 @@ import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.net.HttpURLConnection;
 import java.net.URL;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 
@@ -54,7 +57,9 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
     private CheckBox mAvoidHighwaysCkb, mAvoidTollsCkb, mAvoidFerriesCkb;
     private Button mGO;
     private EditText mOriginEt, mDestinationEt;
-    private List mList;
+    private ListView mList;
+    private StepListAdapter mAdapter;
+    boolean doubleBackToExitPressedOnce = false;
     /**
      * ATTENTION: This was auto-generated to implement the App Indexing API.
      * See https://g.co/AppIndexing/AndroidStudio for more information.
@@ -78,7 +83,7 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
         mAvoidFerriesCkb = (CheckBox) findViewById(R.id.avoid_ferries_ckb);
         mGO = (Button) findViewById(R.id.go_bt);
         mOriginEt = (EditText) findViewById(R.id.origin_et);
-        mOriginEt.setText("高雄火車站");
+        mOriginEt.setText("高雄");
         mDestinationEt = (EditText) findViewById(R.id.destination_et);
         mDestinationEt.setText("台南火車站");
         mGO.setOnClickListener(mClick);
@@ -87,9 +92,37 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
         mWalking.setOnClickListener(mClick);
         mBicycle.setVisibility(View.GONE);
         selectDirMode(DIR_MODE_CAR);
+        mList = (ListView)findViewById(R.id.listView);
+        mAdapter = new StepListAdapter(this);
+        mList.setAdapter(mAdapter);
         // ATTENTION: This was auto-generated to implement the App Indexing API.
         // See https://g.co/AppIndexing/AndroidStudio for more information.
         client = new GoogleApiClient.Builder(this).addApi(AppIndex.API).build();
+    }
+
+    @Override
+    public void onBackPressed() {
+        if (mAdapter.getLegs().size() > 0) {
+            mAdapter.setLegs(new HashMap<String, String>());//第一條路線
+            mAdapter.setSteps(new ArrayList<HashMap<String, String>>());//第一條路線
+            mAdapter.notifyDataSetChanged();
+        } else {
+            if (doubleBackToExitPressedOnce) {
+                super.onBackPressed();
+                return;
+            }
+
+            this.doubleBackToExitPressedOnce = true;
+            Toast.makeText(this, "Please click BACK again to exit", Toast.LENGTH_SHORT).show();
+
+            new Handler().postDelayed(new Runnable() {
+
+                @Override
+                public void run() {
+                    doubleBackToExitPressedOnce = false;
+                }
+            }, 2000);
+        }
     }
 
     private View.OnClickListener mClick = new View.OnClickListener() {
@@ -176,18 +209,28 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
 
             try {
                 parser.setmJSONData(new JSONObject(result));
-                List<List<HashMap<String, String>>> positions = parser.parserPolylinePoints();
-                if(positions.size()>0) {
-                    List<HashMap<String, String>> steps = positions.get(0);//選第一條路線
-                    for (int j = 0; j < steps.size(); j++) {
-                        HashMap<String, String> points = steps.get(j);
-                        mMap.addMarker(new MarkerOptions()
-                                .position(new LatLng(
-                                        Double.parseDouble(points.get("lat")),
-                                        Double.parseDouble(points.get("lng"))))
-                                .anchor(0.5f, 0.5f));
-                    }
-                }
+                List<HashMap<String, String>> legs = parser.getLegs();
+                List<List<HashMap<String, String>>> steps = parser.getSteps();
+                if(legs.size()>0)
+                    mAdapter.setLegs(legs.get(0));//第一條路線
+                if(steps.size()>0)
+                    mAdapter.setSteps(steps.get(0));//第一條路線
+                mAdapter.notifyDataSetChanged();
+
+
+
+//                List<List<HashMap<String, String>>> positions = parser.parserPolylinePoints();
+//                if(positions.size()>0) {
+//                    List<HashMap<String, String>> steps = positions.get(0);//選第一條路線
+//                    for (int j = 0; j < steps.size(); j++) {
+//                        HashMap<String, String> points = steps.get(j);
+//                        mMap.addMarker(new MarkerOptions()
+//                                .position(new LatLng(
+//                                        Double.parseDouble(points.get("lat")),
+//                                        Double.parseDouble(points.get("lng"))))
+//                                .anchor(0.5f, 0.5f));
+//                    }
+//                }
             } catch (JSONException e) {
                 e.printStackTrace();
             }

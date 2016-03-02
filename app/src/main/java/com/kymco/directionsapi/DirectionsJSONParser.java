@@ -116,7 +116,6 @@ public class DirectionsJSONParser {
                     hm.put("end_location_lng",end_location_lng);
                     hm.put("start_location_lat",start_location_lat);
                     hm.put("start_location_lng",start_location_lng);
-                    hm.put("start_location_lng", start_location_lng);
                     result.add(hm);
                 }
 
@@ -153,7 +152,8 @@ public class DirectionsJSONParser {
                     for (int k = 0; k < jSteps.length(); k++) {
                         String html_instructions = ((JSONObject) jSteps.get(k)).getString("html_instructions");
                         String travel_mode = ((JSONObject) jSteps.get(k)).getString("travel_mode");
-                        String maneuver = ((JSONObject) jSteps.get(k)).getString("maneuver");
+                        String maneuver = "";
+                        try {maneuver = ((JSONObject) jSteps.get(k)).getString("maneuver");} catch (JSONException e) {}
 
                         String distance_text = ((JSONObject) jSteps.get(k)).getJSONObject("distance").getString("text");
                         String distance_value = ((JSONObject) jSteps.get(k)).getJSONObject("distance").getString("value");
@@ -166,6 +166,7 @@ public class DirectionsJSONParser {
 
                         String end_lat = ((JSONObject) jSteps.get(k)).getJSONObject("end_location").getString("lat");
                         String end_lon = ((JSONObject) jSteps.get(k)).getJSONObject("end_location").getString("lng");
+                        String points = ((JSONObject) jSteps.get(k)).getJSONObject("polyline").getString("points");
                         HashMap<String, String> hm = new HashMap<String, String>();
                         hm.put("distance_text",distance_text);
                         hm.put("duration_text",duration_text);
@@ -176,6 +177,7 @@ public class DirectionsJSONParser {
                         hm.put("start_lon",start_lon);
                         hm.put("end_lat",end_lat);
                         hm.put("end_lon",end_lon);
+                        hm.put("points",points);
                         path.add(hm);
                     }
                     result.add(path);

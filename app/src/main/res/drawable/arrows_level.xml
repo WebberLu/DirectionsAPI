@@ -70,5 +70,10 @@
         android:maxLevel="13">
     </item>
 
+    <item
+        android:drawable="@drawable/ramp_right"
+        android:maxLevel="14">
+    </item>
+
 
 </level-list>
