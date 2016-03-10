@@ -6,8 +6,13 @@ import android.location.Location;
 import android.os.AsyncTask;
 import android.os.Bundle;
 import android.os.Handler;
+import android.os.Message;
 import android.support.v4.app.FragmentActivity;
+import android.text.Html;
+import android.text.Spanned;
 import android.util.Log;
+import android.util.TypedValue;
+import android.view.Gravity;
 import android.view.Menu;
 import android.view.MenuItem;
 import android.view.View;
@@ -17,6 +22,7 @@ import android.widget.CheckBox;
 import android.widget.EditText;
 import android.widget.ImageView;
 import android.widget.ListView;
+import android.widget.TextView;
 import android.widget.Toast;
 
 import com.google.android.gms.common.ConnectionResult;
@@ -55,9 +61,9 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
     private String TAG = "DirectionsAPI";
     private GoogleMap mMap;
     private Marker mMyPosMarker = null;
-    private static final float DEFAULT_ZOOM_SCALE = 15;
-    private static final float DEFAULT_TILT_DEGREE = 30;
-
+    private static final float DEFAULT_ZOOM_SCALE = 18;
+    private static final float DEFAULT_TILT_DEGREE = 0;
+    private static final int MSG_START_NAVIGATION = 0;
     private static int DIR_MODE = 0;
     private static int DIR_MODE_CAR = 0;
     private static int DIR_MODE_BICYCLE = 1;
@@ -66,15 +72,18 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
     private CheckBox mAvoidHighwaysCkb, mAvoidTollsCkb, mAvoidFerriesCkb;
     private Button mGO;
     private EditText mOriginEt, mDestinationEt;
+    private TextView mRoad1Tv,mRoad2Tv,mDistanceTv;
     private ListView mList;
     private StepListAdapter mAdapter;
     boolean doubleBackToExitPressedOnce = false;
     private Polyline mNavRoute = null, mStepRoute = null;
-    public static final long UPDATE_INTERVAL_IN_MILLISECONDS = 10000;
+    private List<HashMap<String, String>> mCurrentSteps = new ArrayList<HashMap<String, String>>();//剩下所有的路線
+    private List<LatLng> mCurrentStepPoints = new ArrayList<LatLng>();//最近一段路線的points
+    public static final long UPDATE_INTERVAL_IN_MILLISECONDS = 2*1000;
     public static final long FASTEST_UPDATE_INTERVAL_IN_MILLISECONDS =
             UPDATE_INTERVAL_IN_MILLISECONDS / 2;
-
     private static final double EARTH_RADIUS = 6378137.0;
+    private Toast mToast;
     /**
      * Provides the entry point to Google Play services.
      */
@@ -103,7 +112,7 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
         SupportMapFragment mapFragment = (SupportMapFragment) getSupportFragmentManager()
                 .findFragmentById(R.id.map);
         mapFragment.getMapAsync(this);
-
+        mToast = new Toast(getApplicationContext());
         mCar = (ImageView) findViewById(R.id.car_iv);
         mBicycle = (ImageView) findViewById(R.id.bicycle_iv);
         mWalking = (ImageView) findViewById(R.id.walking_iv);
@@ -114,7 +123,10 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
         mOriginEt = (EditText) findViewById(R.id.origin_et);
         mOriginEt.setText("高雄");
         mDestinationEt = (EditText) findViewById(R.id.destination_et);
-        mDestinationEt.setText("台南火車站");
+        mDestinationEt.setText("西子灣捷運站");
+        mRoad1Tv = (TextView) findViewById(R.id.road1);
+        mRoad2Tv = (TextView) findViewById(R.id.road2);
+        mDistanceTv = (TextView) findViewById(R.id.distance);
         mGO.setOnClickListener(mClick);
         mCar.setOnClickListener(mClick);
         mBicycle.setOnClickListener(mClick);
@@ -174,12 +186,20 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
         }
     };
 
+    private void reset(){
+        mAdapter.setLegs(new HashMap<String, String>());
+        mAdapter.setSteps(new ArrayList<HashMap<String, String>>());
+        mAdapter.notifyDataSetChanged();
+        mCurrentSteps = new ArrayList<HashMap<String, String>>();
+        mCurrentStepPoints = new ArrayList<LatLng>();
+        mMap.clear();
+        mHandler.removeMessages(MSG_START_NAVIGATION);
+    }
+
     @Override
     public void onBackPressed() {
         if (mAdapter.getLegs().size() > 0) {//reset direction list
-            mAdapter.setLegs(new HashMap<String, String>());
-            mAdapter.setSteps(new ArrayList<HashMap<String, String>>());
-            mAdapter.notifyDataSetChanged();
+            reset();
         } else {
             if (doubleBackToExitPressedOnce) {
                 super.onBackPressed();
@@ -348,16 +368,16 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
 
     @Override
     public void onLocationChanged(Location location) {
-        Double d = 0.0;
+        Double distance = 0.0;
         Log.i(TAG, "onLocationChanged : lat : " + location.getLatitude() + " lng : " +
                 "" + location.getLongitude() + " speed : " + location.getSpeed() + " Accuracy : " + location.getAccuracy());
         if (location.hasAccuracy() && location.getAccuracy() < 30) {
             if (mCurrentLocation != null) {
-                d = gps2m(mCurrentLocation, location);
-                Log.i(TAG, "onLocationChanged : pre location and latest location distance : " + d + " m");
+                distance = distanceBetweenTwoPoints(mCurrentLocation, location);
+                Log.i(TAG, "onLocationChanged : pre location and latest location distance : " + distance + " m");
             }
             mCurrentLocation = location;
-            if (mMap != null && d!=0.0) {
+            if (mMap != null && distance > 0.0 /*&& location.getSpeed() > 0*/) {
                 LatLng position = new LatLng(mCurrentLocation.getLatitude(), mCurrentLocation.getLongitude());
                 CameraPosition focusPos = new CameraPosition.Builder()
                         .target(position).zoom(DEFAULT_ZOOM_SCALE).bearing(0).tilt(DEFAULT_TILT_DEGREE).build();
@@ -366,7 +386,7 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
         }
     }
 
-    private Double gps2m(Location loc1, Location loc2) {
+    private Double distanceBetweenTwoPoints(Location loc1, Location loc2) {
         double radLat1 = (loc1.getLatitude() * Math.PI / 180.0);
         double radLat2 = (loc2.getLatitude() * Math.PI / 180.0);
         double a = radLat1 - radLat2;
@@ -375,6 +395,107 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
         s = s * EARTH_RADIUS;
         s = Math.round(s * 10000) / 10000;
         return s;
+    }
+
+    private Double distanceBetweenTwoPoints(Double lat1, Double lng1, Double lat2, Double lng2){
+        double radLat1 = (lat1 * Math.PI / 180.0);
+        double radLat2 = (lat2 * Math.PI / 180.0);
+        double a = radLat1 - radLat2;
+        double b = (lng1 - lng2) * Math.PI / 180.0;
+        double s = 2 * Math.asin(Math.sqrt(Math.pow(Math.sin(a / 2), 2) + Math.cos(radLat1) * Math.cos(radLat2) * Math.pow(Math.sin(b / 2), 2)));
+        s = s * EARTH_RADIUS;
+        s = Math.round(s * 10000) / 10000;
+        return s;
+    }
+
+    private Handler mHandler = new Handler(){
+        @Override
+        public void handleMessage(Message msg) {
+            super.handleMessage(msg);
+            if(msg.what == MSG_START_NAVIGATION){
+                startNavigation();
+            }
+        }
+    };
+
+    private void startNavigation() {
+
+        if (mCurrentSteps.size() == 0) {
+
+            return;
+        }
+
+        double minDistanceFromStep = getMinDistanceFromStep();
+        if (minDistanceFromStep == 500) {//重新規劃路徑
+            reset();
+            String url = "";
+            url = Constants.API_URL +
+                    "origin=" + mCurrentLocation.getLatitude() + "," + mCurrentLocation.getLongitude() +
+                    "&destination=" + mDestinationEt.getText().toString() +
+                    "&language=" + Constants.LANGUAGE +
+                    "&avoid=" + getAvoidParameter() +
+                    "&mode=" + getModeParameter() +
+                    "&sensor=false&units=metric" +
+                    "&key=" + Constants.API_KEY;
+            Log.i(Constants.TAG, url);
+            new getJsonTask().execute(url);
+        } else {
+            if (minDistanceFromStep > 50) {
+                //距離大於50繼續偵測
+            } else {//距離小於50
+                if (minDistanceFromStep == -1) {//若距離最近的一個點已經是該step的最後一個點
+                    mCurrentSteps.remove(0);
+                    if(mCurrentSteps.size()>0)
+                        mCurrentStepPoints = new DirectionsJSONParser().decodePoly(mCurrentSteps.get(0).get("points"));
+                    mAdapter.notifyDataSetChanged();
+                }
+            }
+            if(mCurrentSteps.size()>0) {
+                Spanned road1 = Html.fromHtml("");
+                Spanned road2 = Html.fromHtml("");
+                Double distance = 0d;
+                road1 = Html.fromHtml("目前路線 : " + mCurrentSteps.get(0).get("html_instructions"));
+                try {road2 = Html.fromHtml("下一條路線 : " + mCurrentSteps.get(1).get("html_instructions"));} catch (Exception e) {}
+                distance = distanceBetweenTwoPoints(
+                        mCurrentLocation.getLatitude(),
+                        mCurrentLocation.getLongitude(),
+                        Double.parseDouble(mCurrentSteps.get(0).get("end_lat")),
+                        Double.parseDouble(mCurrentSteps.get(0).get("end_lon")));
+                mRoad1Tv.setText(road1);
+                mRoad2Tv.setText(road2);
+                mDistanceTv.setText("距離下一段 : " + distance + " 公尺");
+//
+//                Log.e(TAG, "目前路線 : \n" + Html.fromHtml(
+//                        mCurrentSteps.get(0).get("html_instructions")) + "\n" +
+//                        "距離下一段 : " + distanceBetweenTwoPoints(
+//                        mCurrentLocation.getLatitude(),
+//                        mCurrentLocation.getLongitude(),
+//                        Double.parseDouble(mCurrentSteps.get(0).get("end_lat")),
+//                        Double.parseDouble(mCurrentSteps.get(0).get("end_lon"))) + " 公尺");
+            }
+            if (mHandler.hasMessages(MSG_START_NAVIGATION))
+                mHandler.removeMessages(MSG_START_NAVIGATION);
+            mHandler.sendEmptyMessageDelayed(MSG_START_NAVIGATION, 2000);
+        }
+    }
+
+    private double getMinDistanceFromStep(){
+        double minDistance = 500;
+        int minDistanceInx = 0;
+        for(int i =0;i<mCurrentStepPoints.size();i++){//記算這個step的points與當前位置的最點距離
+            double newDistance = distanceBetweenTwoPoints(mCurrentLocation.getLatitude(),
+                    mCurrentLocation.getLongitude(),mCurrentStepPoints.get(i).latitude,
+                    mCurrentStepPoints.get(i).longitude);
+            if(newDistance<minDistance){
+                minDistance = newDistance;
+                minDistanceInx = i;
+            }
+        }
+        if(minDistanceInx+1 == mCurrentStepPoints.size()){//若距離最近的一個點已經是該step的最後一個點
+            minDistance = -1;
+        }
+
+        return minDistance;
     }
 
     private class getJsonTask extends AsyncTask<String, String, String> {
@@ -394,8 +515,11 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
                 List<List<HashMap<String, String>>> steps = parser.getSteps();
                 if (legs.size() > 0)
                     mAdapter.setLegs(legs.get(0));//第一條路線
-                if (steps.size() > 0)
+                if (steps.size() > 0) {
                     mAdapter.setSteps(steps.get(0));//第一條路線
+                    mCurrentSteps = steps.get(0);
+                    mCurrentStepPoints = parser.decodePoly(mCurrentSteps.get(0).get("points"));
+                }
                 mAdapter.notifyDataSetChanged();
 
                 ArrayList<LatLng> list = new ArrayList<LatLng>();
@@ -405,7 +529,7 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
                 list.add(new LatLng(
                         Double.parseDouble(legs.get(0).get("end_location_lat")),
                         Double.parseDouble(legs.get(0).get("end_location_lng"))));
-                zoomMapInitial(list);
+//                zoomMapInitial(list);
 
                 List<List<HashMap<String, String>>> positions = parser.parserPolylinePoints();
                 if (positions.size() > 0) {
@@ -418,7 +542,30 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
                                         Double.parseDouble(points.get("lng"))))
                                 .anchor(0.5f, 0.5f).icon(BitmapDescriptorFactory.fromResource(R
                                         .drawable.circumference)));
+
+//                        if(j>0){
+//                            double d = distanceBetweenTwoPoints(
+//                                    Double.parseDouble(step.get(j - 1).get("lat")),
+//                                    Double.parseDouble(step.get(j - 1).get("lng")),
+//                                    Double.parseDouble(step.get(j).get("lat")),
+//                                    Double.parseDouble(step.get(j).get("lng")));
+//                            double d2 = distanceBetweenTwoPoints(
+//                                    mCurrentLocation.getLatitude(),
+//                                    mCurrentLocation.getLongitude(),
+//                                    Double.parseDouble(step.get(j).get("lat")),
+//                                    Double.parseDouble(step.get(j).get("lng")));
+//                            if(d>1000)
+//                                Log.e(TAG,"each distance between two points: "+"("+j+")"+d2);
+//                            else
+//                                Log.v(TAG,"each distance between two points: "+"("+j+")"+d2);
+//                        }
                     }
+                }
+
+                if (mCurrentSteps.size() > 0 && mCurrentStepPoints.size() > 0) {
+                    if (mHandler.hasMessages(MSG_START_NAVIGATION))
+                        mHandler.removeMessages(MSG_START_NAVIGATION);
+                    mHandler.sendEmptyMessageDelayed(MSG_START_NAVIGATION, 2000);
                 }
             } catch (Exception e) {
                 e.printStackTrace();
@@ -541,6 +688,15 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
     public void onMapReady(GoogleMap googleMap) {
         mMap = googleMap;
         mMap.setMyLocationEnabled(true);
+        mMap.setOnMyLocationButtonClickListener(new GoogleMap.OnMyLocationButtonClickListener(){
+
+            @Override
+            public boolean onMyLocationButtonClick() {
+                if(mCurrentLocation!=null)
+                    mOriginEt.setText(mCurrentLocation.getLatitude()+","+mCurrentLocation.getLongitude());
+                return false;
+            }
+        });
     }
 
     private void zoomMapInitial(ArrayList<LatLng> placelist) {
@@ -552,5 +708,18 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
         } catch (Exception e) {
             e.printStackTrace();
         }
+    }
+
+    private void showCustomToast(CharSequence text) {
+        TextView tv = new TextView(this);
+        tv.setBackgroundResource(R.drawable.bg_border_2);
+        tv.setText(text);
+        tv.setTextColor(Color.WHITE);
+        tv.setTextSize(TypedValue.COMPLEX_UNIT_PX, 60);
+        tv.setPadding(10, 10, 10, 10);
+        mToast.setGravity(Gravity.CENTER, 0, 0);
+        mToast.setDuration(Toast.LENGTH_SHORT);
+        mToast.setView(tv);
+        mToast.show();
     }
 }
